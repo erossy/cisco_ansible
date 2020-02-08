@@ -1,0 +1,65 @@
+- name: "Demonstrate connecting to switches"
+  hosts: network
+  gather_facts: no
+  tasks:
+    - name: Get timestamp from the system
+      shell: "date +%Y%m%d_%H%M-%S"
+      register: tstamp
+      delegate_to: localhost
+        
+    - name: Set variables
+      set_fact:
+        cur_date: "{{ tstamp.stdout[0:13]}}"
+    # Collect data
+    #
+    - name: Gather facts (Cisco)
+      ios_facts:
+    ###
+    # Demonstrate variables
+    #
+    - name: Display some facts
+      debug:
+        msg: "The hostname is {{ ansible_net_hostname }} and the OS is {{ ansible_net_version }}"
+
+    - name: Write facts to disk using a template
+      copy:
+        content: |
+          #jinja2: lstrip_blocks: True
+          Routers device info:
+            {% for host in groups['routers'] %}
+            Hostname: {{ hostvars[host].ansible_net_hostname }}
+            Version: {{ hostvars[host].ansible_net_version }}
+            Model: {{ hostvars[host].ansible_net_model }}
+            Serial: {{ hostvars[host].ansible_net_serialnum }}
+            {% endfor %}
+
+          Switches device info:
+            {% for host in groups['switches'] %}
+            Hostname: {{ hostvars[host].ansible_net_hostname }}
+            Version: {{ hostvars[host].ansible_net_version }}
+            Model: {{ hostvars[host].ansible_net_model }}
+            Serial: {{ hostvars[host].ansible_net_serialnum }}
+            {% endfor %}
+        dest: /home/erossy/network-facts
+      run_once: yes
+
+    ###
+    # Get running configuration
+    #
+
+    - name: Backup router
+      ios_command:
+        commands:
+          - show running-config 
+      register: config
+
+    - name: Create backup dir
+      file:
+        path: "/home/erossy/ansible_backups/{{ inventory_hostname }}"
+        state: directory
+        recurse: yes
+
+    - name: Copy backup files into /tmp/backups/ (ios)
+      copy:
+        content: "{{ config.stdout[0] }}"
+        dest: "/home/erossy/ansible_backups/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ cur_date }}.bck"

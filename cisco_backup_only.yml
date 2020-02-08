@@ -1,0 +1,42 @@
+- name: "Perform configuration backup"
+  hosts: network
+  gather_facts: no
+  tasks:
+    #Getting timestamp for the filename
+    - name: Get timestamp from the system
+      shell: "date +%Y%m%d_%H%M-%S"
+      register: tstamp
+      delegate_to: localhost
+      run_once: yes
+        
+    - name: Set variables
+      delegate_to: localhost
+      run_once: yes
+      set_fact:
+        cur_date: "{{ tstamp.stdout[0:13]}}"
+
+    ###
+    # Collect data
+    ###
+    - name: Gather facts (Cisco)
+      ios_facts:
+      
+    ###
+    # Perform backup
+    ###  
+    - name: Backup devices
+      ios_command:
+        commands:
+          - show running-config 
+      register: config
+
+    - name: Create backup dir
+      file:
+        path: "/home/erossy/ansible_backups/{{ inventory_hostname }}"
+        state: directory
+        recurse: yes
+
+    - name: Copy backup files into directory
+      copy:
+        content: "{{ config.stdout[0] }}"
+        dest: "/home/erossy/ansible_backups/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ cur_date }}.bck"
